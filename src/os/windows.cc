@@ -36,7 +36,11 @@
 #include <chrono>
 #include <thread>
 #include <new>
+#if defined(_M_ARM64)
+#include <intrin.h>
+#else
 #include <nmmintrin.h>
+#endif
 #include <cstdint>
 #include <setupapi.h>
 #include <cfgmgr32.h>
@@ -719,7 +723,11 @@ void ncclOsCpuZero(ncclAffinity& affinity) {
 int ncclOsCpuCount(const ncclAffinity& affinity) {
   int count = 0;
   for (int group = 0; group < NCCL_WINDOWS_PROCESSOR_GROUP_COUNT; group++) {
+#if defined(_M_ARM64)
+    count += _CountOneBits64((unsigned long long)affinity.masks[group]);
+#else
     count += _mm_popcnt_u64((unsigned long long)affinity.masks[group]);
+#endif
   }
   return count;
 }

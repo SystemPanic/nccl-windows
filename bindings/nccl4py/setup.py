@@ -4,6 +4,7 @@
 # See LICENSE.txt for more license information
 
 import os
+import sys
 from pathlib import Path
 
 from setuptools import Extension, setup
@@ -13,6 +14,10 @@ from Cython.Build import cythonize
 
 PACKAGE = "nccl.bindings"
 LIBNAMES = ["nccl"]
+
+IS_WINDOWS = sys.platform == "win32"
+# Per-platform dynamic loader: dlopen/dlsym on Linux, LoadLibrary/GetProcAddress on Windows.
+LOADER_SUFFIX = "windows" if IS_WINDOWS else "linux"
 
 
 def _cuda_include_dir() -> str:
@@ -39,12 +44,20 @@ class BuildExt(build_ext):
 
 
 def _ext(module: str, source: str) -> Extension:
+    if IS_WINDOWS:
+        # MSVC spelling of the standard flag; no libdl on Windows (the loader
+        # only needs kernel32, which is always linked).
+        compile_args = ["/std:c++14"]
+        libraries = []
+    else:
+        compile_args = ["-std=c++14"]
+        libraries = ["dl"]
     return Extension(
         module,
         sources=[source],
         language="c++",
-        extra_compile_args=["-std=c++14"],
-        libraries=["dl"],
+        extra_compile_args=compile_args,
+        libraries=libraries,
     )
 
 
@@ -54,14 +67,14 @@ def libname_extensions(libname: str) -> list[Extension]:
     For libname="nccl":
         nccl.bindings.nccl              <- nccl/bindings/nccl.pyx
         nccl.bindings.cynccl            <- nccl/bindings/cynccl.pyx
-        nccl.bindings._internal.nccl    <- nccl/bindings/_internal/nccl_linux.pyx
+        nccl.bindings._internal.nccl    <- nccl/bindings/_internal/nccl_{linux,windows}.pyx
     """
     return [
         _ext(f"{PACKAGE}.{libname}", os.path.join(*PACKAGE.split("."), f"{libname}.pyx")),
         _ext(f"{PACKAGE}.cy{libname}", os.path.join(*PACKAGE.split("."), f"cy{libname}.pyx")),
         _ext(
             f"{PACKAGE}._internal.{libname}",
-            os.path.join(*PACKAGE.split("."), "_internal", f"{libname}_linux.pyx"),
+            os.path.join(*PACKAGE.split("."), "_internal", f"{libname}_{LOADER_SUFFIX}.pyx"),
         ),
     ]
 

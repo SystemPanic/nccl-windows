@@ -8,7 +8,21 @@
 #define NCCL_COMPILER_MSVC_H
 
 #include <intrin.h>
+#if defined(_M_IX86) || defined(_M_X64)  // x86, x64 and ARM64EC
 #include <emmintrin.h>
+#else
+// emmintrin.h is not usable here (e.g. Windows ARM64): define what this header needs
+#ifndef _MM_HINT_T0
+#define _MM_HINT_T0 1
+#endif
+#if defined(_M_ARM64)
+#define _mm_prefetch(p, hint) __prefetch((const void*)(p))
+#define __popcnt(x) _CountOneBits((unsigned long)(x))
+#define __popcnt64(x) _CountOneBits64((unsigned __int64)(x))
+#else
+#define _mm_prefetch(p, hint) ((void)(p))
+#endif
+#endif
 #include <atomic>
 
 // Use standard C++ atomics via reinterpret_cast - this is safe for primitive types

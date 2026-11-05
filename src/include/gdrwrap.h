@@ -41,6 +41,14 @@ static inline void wc_store_fence(void) { asm volatile("sync" : : : "memory"); }
 static inline void wc_store_fence(void) { _mm_sfence(); }
 #elif defined(__aarch64__)
 static inline void wc_store_fence(void) { asm volatile("dsb st" : : : "memory"); }
+#elif defined(_MSC_VER) && (defined(_M_ARM64) || defined(_M_ARM64EC))
+// MSVC has no inline asm on ARM64; use the intrinsic equivalent of "dsb st".
+#include <intrin.h>
+static inline void wc_store_fence(void) { __dsb(_ARM64_BARRIER_ST); }
+#else
+// Generic fallback for any other host compiler/architecture.
+#include <atomic>
+static inline void wc_store_fence(void) { std::atomic_thread_fence(std::memory_order_seq_cst); }
 #endif
 #endif
 
